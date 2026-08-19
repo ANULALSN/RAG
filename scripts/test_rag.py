@@ -14,7 +14,7 @@ MAX_CONTEXT_RESULTS = 3
 
 def main():
 
-    query = "What is Volume in Big Data?"
+    query = "What is the CAP theorem in distributed databases?"
 
     print("=" * 70)
     print("REAL RAG TEST")
@@ -96,7 +96,7 @@ def main():
     # 5. Build context from filtered results
     # --------------------------------------------------
 
-    context = build_context(relevant_results)
+    context, sources = build_context(relevant_results)
 
     # --------------------------------------------------
     # 6. Build grounded prompt
@@ -112,12 +112,18 @@ IMPORTANT RULES:
 3. Do NOT invent facts.
 4. Do NOT infer information that is not explicitly supported
    by the sources.
-5. If the sources do not contain enough information to answer
+5. When a statement is supported by a source, cite the
+   corresponding source number shown in the context,
+   such as [1] or [2].
+6. If the sources do not contain enough information to answer
    the question, say exactly:
 
 "I don't have enough information in the provided course material."
 
-6. Keep the answer concise and academically clear.
+7. Keep the answer concise and academically clear.
+8. Answer in 1–3 concise sentences.
+9. Do not repeat the same idea.
+10. Do not add unnecessary examples or explanations.
 
 QUESTION:
 {query}
@@ -146,21 +152,16 @@ ANSWER:
     # --------------------------------------------------
 
     print("\n" + "=" * 70)
-    print("SOURCES USED")
+    print("SOURCES")
     print("=" * 70)
 
-    for index, result in enumerate(
-        relevant_results,
-        start=1
-    ):
-
-        payload = result.payload
-
+    for source in sources:
         print(
-            f"{index}. "
-            f"{payload.get('document')} "
-            f"— Slide {payload.get('slide')}"
+            f"[{source['id']}] "
+            f"{source['document']} "
+            f"— Slide {source['slide']}"
         )
+
 
 
 if __name__ == "__main__":
