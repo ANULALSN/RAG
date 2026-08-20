@@ -1,5 +1,6 @@
 from qdrant_client import QdrantClient
 
+from app.evaluation.generation_dataset import GENERATION_DATASET
 from app.retrieval.embeddings import embed_text
 from app.generation.context_builder import build_context
 from app.generation.llm import generate_answer
@@ -13,27 +14,28 @@ RELEVANCE_THRESHOLD = 0.70
 MAX_CONTEXT_RESULTS = 2
 
 
-def main():
+ABSTENTION_MESSAGE = (
+    "I don't have enough information in the provided course material."
+)
 
-    query = "What is structured data?"
 
+def evaluate_query(client, item):
+
+    query = item["question"]
+
+    print("\n" + "=" * 70)
+    print(f"{item['id']}: {query}")
     print("=" * 70)
-    print("REAL RAG TEST")
-    print("=" * 70)
-
-    print(f"\nQuestion: {query}")
 
     # --------------------------------------------------
-    # 1. Embed the user's question
+    # 1. Embed query
     # --------------------------------------------------
 
     query_vector = embed_text(query)
 
     # --------------------------------------------------
-    # 2. Retrieve relevant chunks
+    # 2. Retrieve
     # --------------------------------------------------
-
-    client = QdrantClient(path=QDRANT_PATH)
 
     results = client.query_points(
         collection_name=COLLECTION_NAME,
@@ -43,69 +45,71 @@ def main():
 
     best_score = results[0].score if results else 0.0
 
-    print(f"\nBest retrieval score: {best_score:.4f}")
+    print(f"Best retrieval score: {best_score:.4f}")
 
     # --------------------------------------------------
     # 3. Relevance gate
     # --------------------------------------------------
 
     if best_score < RELEVANCE_THRESHOLD:
-        print("\n" + "=" * 70)
-        print("ABSTAINING")
-        print("=" * 70)
 
-        print(
-            "I don't have enough information "
-            "in the provided course material."
+        print("\nABSTAINING")
+        print(ABSTENTION_MESSAGE)
+
+        expected_abstention = (
+            item["type"] == "unanswerable"
         )
 
-        client.close()
-        return
+        print(
+            f"Expected abstention: "
+            f"{'YES' if expected_abstention else 'NO'}"
+        )
+
+        print(
+            f"Abstention result: "
+            f"{'CORRECT' if expected_abstention else 'INCORRECT'}"
+        )
+
+        return {
+            "generated": False,
+            "abstained": True,
+            "correct_abstention": expected_abstention,
+        }
 
     # --------------------------------------------------
-    # 4. Filter and limit context
+    # 4. Filter context
     # --------------------------------------------------
 
     relevant_results = [
     result
     for result in results
     if result.score >= RELEVANCE_THRESHOLD
-    ]
+]
 
     relevant_results = select_context(
         relevant_results,
         max_results=MAX_CONTEXT_RESULTS,
     )
 
-    print(f"Retrieved: {len(results)} chunks")
+    print(
+        f"Retrieved: {len(results)} chunks"
+    )
+
     print(
         f"Using {len(relevant_results)} "
         f"relevant chunks for generation."
     )
 
-    print("\nRetrieval scores:")
-
-    for rank, result in enumerate(results, start=1):
-
-        payload = result.payload
-
-        print(
-            f"{rank}. "
-            f"{result.score:.4f} "
-            f"→ Slide {payload.get('slide')} "
-            f"→ {payload.get('title', '')}"
-        )
-
-    client.close()
-
     # --------------------------------------------------
-    # 5. Build context from filtered results
+    # 5. Build context
     # --------------------------------------------------
 
-    context, sources = build_context(relevant_results)
+    context, sources = build_context(
+        relevant_results
+    )
 
     # --------------------------------------------------
-    # 6. Build grounded prompt
+    # 6. Grounded prompt
     # --------------------------------------------------
 
     prompt = f"""
@@ -132,8 +136,9 @@ COURSE MATERIAL:
 
 ANSWER:
 """
+
     # --------------------------------------------------
-    # 7. Generate answer
+    # 7. Generate
     # --------------------------------------------------
 
     print("\nGenerating answer...\n")
@@ -146,7 +151,7 @@ ANSWER:
     print(answer)
 
     # --------------------------------------------------
-    # 8. Show sources actually used for generation
+    # 8. Sources
     # --------------------------------------------------
 
     print("\n" + "=" * 70)
@@ -154,12 +159,38 @@ ANSWER:
     print("=" * 70)
 
     for source in sources:
+
         print(
             f"[{source['id']}] "
             f"{source['document']} "
             f"— Slide {source['slide']}"
         )
 
+    return {
+        "generated": True,
+        "abstained": False,
+        "correct_abstention": False,
+    }
+
+
+def main():
+
+    print("=" * 70)
+    print("MSc RAG — GENERATION EVALUATION")
+    print("=" * 70)
+
+    client = QdrantClient(
+        path=QDRANT_PATH
+    )
+
+    for item in GENERATION_DATASET:
+
+        evaluate_query(
+            client,
+            item
+        )
+
+    client.close()
 
 
 if __name__ == "__main__":
