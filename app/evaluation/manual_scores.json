@@ -1,0 +1,101 @@
+{
+  "g01": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 0.75,
+    "conciseness": 0.5,
+    "source_correctness": 1.0,
+    "topic_drift": 0.75,
+    "notes": "The answer correctly defines Big Data and is supported by the course material. It adds several related details beyond the concise definition, making it somewhat verbose."
+  },
+
+  "g02": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 0.75,
+    "conciseness": 0.25,
+    "source_correctness": 1.0,
+    "topic_drift": 0.75,
+    "notes": "The definition of Volume is correct and grounded, but the answer adds processing technologies, cloud services, examples, and challenges that are unnecessary for the question."
+  },
+
+  "g03": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 0.75,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer correctly explains Velocity and remains focused on the topic. It includes an example but remains reasonably concise."
+  },
+
+  "g04": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 1.0,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer correctly defines structured data, is supported by Slides 19 and 20, and remains focused without introducing unrelated topics."
+  },
+
+  "g05": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 0.75,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer correctly defines unstructured data and gives supporting examples. It is slightly more detailed than necessary but remains relevant."
+  },
+
+  "g06": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 0.75,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer accurately describes semi-structured data and its characteristics. The examples are supported by the retrieved course material."
+  },
+
+  "g07": {
+    "correctness": 1.0,
+    "grounding": 0.75,
+    "relevance": 0.75,
+    "conciseness": 0.5,
+    "source_correctness": 1.0,
+    "topic_drift": 0.75,
+    "notes": "The core definition is correct, but the answer adds additional claims about physical delivery environments, cloud computing, and big data environments that are broader than the concise definition."
+  },
+
+  "g08": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 0.75,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer correctly describes relational databases using tables, rows, columns, normalization, and schema. It remains focused on relational databases."
+  },
+
+  "g09": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 0.75,
+    "conciseness": 0.5,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "The answer correctly describes key-value pair databases and the retrieved sources support the additional characteristics. However, it provides substantially more detail than required."
+  },
+
+  "g10": {
+    "correctness": 1.0,
+    "grounding": 1.0,
+    "relevance": 1.0,
+    "conciseness": 1.0,
+    "source_correctness": 1.0,
+    "topic_drift": 1.0,
+    "notes": "Correctly abstains because the course material does not provide sufficient information about CAP theorem."
+  }
+}
