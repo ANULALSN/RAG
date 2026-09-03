@@ -1,7 +1,8 @@
 from pathlib import Path
 from uuid import uuid4
 
-from qdrant_client.models import PointStruct
+from qdrant_client.models import (FieldCondition, Filter, MatchValue, PointStruct,
+)
 
 from app.ingestion.pptx_loader import extract_pptx
 from app.ingestion.chunker import chunk_slide
@@ -114,3 +115,23 @@ def ingest_pptx(
     # --------------------------------------------------
 
     return len(points)
+def delete_material_vectors(material_id: str) -> None:
+    """
+    Delete all Qdrant vectors belonging to a material.
+    """
+
+    client = get_qdrant_client()
+
+    client.delete(
+        collection_name=COLLECTION_NAME,
+        points_selector=Filter(
+            must=[
+                FieldCondition(
+                    key="material_id",
+                    match=MatchValue(
+                        value=material_id
+                    ),
+                )
+            ]
+        ),
+    )

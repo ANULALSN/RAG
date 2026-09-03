@@ -37,7 +37,21 @@ def get_material(
         Material,
         material_id,
     )
+def get_material_by_filename(
+    db: Session,
+    subject_id: str,
+    filename: str,
+) -> Material | None:
 
+    statement = (
+        select(Material)
+        .where(
+            Material.subject_id == subject_id,
+            Material.filename == filename,
+        )
+    )
+
+    return db.scalars(statement).first()
 
 def list_materials(
     db: Session,

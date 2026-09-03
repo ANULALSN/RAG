@@ -2,24 +2,14 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    UploadFile,
-)
+from fastapi import (APIRouter,Depends,File,HTTPException,UploadFile,)
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.material_repository import (
-    create_material,
-    delete_material,
-    get_material,
-    list_materials,
-    update_material_status,
+from app.db.material_repository import (create_material,delete_material,get_material,get_material_by_filename,list_materials,update_material_status,
 )
-from app.ingestion.material_ingestion import ingest_pptx
+from app.ingestion.material_ingestion import (delete_material_vectors,ingest_pptx,
+)
 
 
 router = APIRouter(
@@ -87,6 +77,18 @@ def upload_material(
         raise HTTPException(
             status_code=400,
             detail="Only PPTX files are currently supported.",
+        )
+    existing_material = get_material_by_filename(
+    db,
+    subject_id,
+    filename,
+    )
+
+    if existing_material is not None:
+
+        raise HTTPException(
+            status_code=409,
+            detail="A material with this filename already exists for this subject.",
         )
 
     # ----------------------------------------------
@@ -256,6 +258,10 @@ def remove_material(
             status_code=404,
             detail="Material not found.",
         )
+
+    delete_material_vectors(
+    material_id
+    )
 
     delete_material(
         db,
