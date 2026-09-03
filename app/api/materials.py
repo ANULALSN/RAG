@@ -157,7 +157,18 @@ def upload_material(
     except Exception as exc:
 
         # ------------------------------------------
-        # 8. Mark failed
+        # 8. Remove any partially indexed vectors
+        # ------------------------------------------
+
+        try:
+            delete_material_vectors(
+                material.id
+            )
+        except Exception:
+            pass
+
+        # ------------------------------------------
+        # 9. Mark failed
         # ------------------------------------------
 
         update_material_status(
