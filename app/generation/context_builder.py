@@ -13,8 +13,8 @@ def build_context(results: list) -> tuple[str, list[dict]]:
         source = {
             "id": index,
             "document": payload.get("document", "Unknown"),
-            "subject": payload.get("subject", "Unknown"),
-            "module": payload.get("module", "Unknown"),
+            "subject_id": payload.get("subject_id", "Unknown"),
+            "material_id": payload.get("material_id", "Unknown"),
             "slide": payload.get("slide", "Unknown"),
             "title": payload.get("title", ""),
         }
@@ -24,8 +24,8 @@ def build_context(results: list) -> tuple[str, list[dict]]:
         sections.append(
             f"SOURCE [{index}]\n"
             f"Document: {source['document']}\n"
-            f"Subject: {source['subject']}\n"
-            f"Module: {source['module']}\n"
+            f"Subject ID: {source['subject_id']}\n"
+            f"Material ID: {source['material_id']}\n"
             f"Slide: {source['slide']}\n"
             f"Title: {source['title']}\n\n"
             f"{payload.get('text', '')}"

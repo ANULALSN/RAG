@@ -1,4 +1,10 @@
 from fastapi import (FastAPI,HTTPException)
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.chats import (
+    router as chats_router,
+    set_rag_pipeline,
+)
 
 from app.api.schemas import (
     QuestionRequest,
@@ -7,6 +13,8 @@ from app.api.schemas import (
 from app.orchestration.rag_pipeline import (
     RAGPipeline,
 )
+from app.api.subjects import router as subjects_router
+from app.api.materials import router as materials_router
 
 
 app = FastAPI(
@@ -19,7 +27,25 @@ app = FastAPI(
 )
 
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(subjects_router)
+app.include_router(chats_router)
+app.include_router(materials_router)
+
+
 rag = RAGPipeline()
+
+set_rag_pipeline(rag)
 
 
 @app.get("/health")

@@ -1,11 +1,16 @@
-from qdrant_client import QdrantClient
+from app.retrieval.qdrant_store import get_qdrant_client
 
 from app.retrieval.embeddings import embed_text
 from app.generation.context_builder import build_context
 from app.generation.llm import generate_answer
 
+from qdrant_client.models import (
+    Filter,
+    FieldCondition,
+    MatchValue,
+)
 
-QDRANT_PATH = "data/processed/qdrant"
+
 COLLECTION_NAME = "msc_knowledge"
 
 RELEVANCE_THRESHOLD = 0.70
@@ -19,12 +24,22 @@ ABSTENTION_MESSAGE = (
 class RAGPipeline:
 
     def __init__(self):
-        self.client = QdrantClient(
-            path=QDRANT_PATH
-        )
+        self.client = get_qdrant_client()
 
-    def ask(self, question: str):
-        """Run the complete RAG pipeline."""
+    def ask(
+        self,
+        question: str,
+        subject_id: str | None = None,
+    ):
+        """
+        Run the complete RAG pipeline.
+
+        If subject_id is provided, retrieval is restricted
+        to vectors belonging to that subject.
+
+        If subject_id is None, existing global retrieval
+        behavior is preserved.
+        """
 
         # ---------------------------------------------
         # 1. Embed question
@@ -35,12 +50,31 @@ class RAGPipeline:
         )
 
         # ---------------------------------------------
-        # 2. Retrieve
+        # 2. Build optional subject filter
+        # ---------------------------------------------
+
+        query_filter = None
+
+        if subject_id:
+            query_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="subject_id",
+                        match=MatchValue(
+                            value=subject_id
+                        ),
+                    )
+                ]
+            )
+
+        # ---------------------------------------------
+        # 3. Retrieve
         # ---------------------------------------------
 
         results = self.client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
+            query_filter=query_filter,
             limit=5,
         ).points
 
@@ -51,7 +85,7 @@ class RAGPipeline:
         )
 
         # ---------------------------------------------
-        # 3. Relevance gate
+        # 4. Relevance gate
         # ---------------------------------------------
 
         if best_score < RELEVANCE_THRESHOLD:
@@ -64,7 +98,7 @@ class RAGPipeline:
             }
 
         # ---------------------------------------------
-        # 4. Select context
+        # 5. Select context
         # ---------------------------------------------
 
         relevant_results = [
@@ -74,7 +108,7 @@ class RAGPipeline:
         ][:MAX_CONTEXT_RESULTS]
 
         # ---------------------------------------------
-        # 5. Build context
+        # 6. Build context
         # ---------------------------------------------
 
         context, sources = build_context(
@@ -82,7 +116,7 @@ class RAGPipeline:
         )
 
         # ---------------------------------------------
-        # 6. Build grounded prompt
+        # 7. Build grounded prompt
         # ---------------------------------------------
 
         prompt = f"""
@@ -117,7 +151,7 @@ ANSWER:
 """
 
         # ---------------------------------------------
-        # 7. Generate
+        # 8. Generate
         # ---------------------------------------------
 
         answer = generate_answer(
@@ -125,7 +159,7 @@ ANSWER:
         )
 
         # ---------------------------------------------
-        # 8. Return structured result
+        # 9. Return structured result
         # ---------------------------------------------
 
         return {
