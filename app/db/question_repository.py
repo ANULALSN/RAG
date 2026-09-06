@@ -94,8 +94,8 @@ def list_questions_by_subject(
     subject_id: str,
     section: str | None = None,
     exam_session: str | None = None,
+    search: str | None = None,
 ) -> list[Question]:
-
     statement = (
         select(Question)
         .join(
@@ -119,11 +119,20 @@ def list_questions_by_subject(
             == exam_session
         )
 
+    if search is not None:
+        statement = statement.where(
+            Question.text.ilike(
+                f"%{search}%"
+            )
+        )
+
     statement = statement.order_by(
         Question.question_number.asc()
     )
 
-    return list(db.scalars(statement).all())
+    return list(
+        db.scalars(statement).all()
+    )
 
 
 def delete_questions(

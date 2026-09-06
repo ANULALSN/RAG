@@ -275,11 +275,14 @@ def get_subject_questions(
         min_length=1,
         max_length=100,
     ),
+    search: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=200,
+    ),
     db: Session = Depends(get_db),
 ):
-
     if subject_id not in VALID_SUBJECTS:
-
         raise HTTPException(
             status_code=404,
             detail="Subject not found.",
@@ -288,12 +291,15 @@ def get_subject_questions(
     return list_questions_by_subject(
         db,
         subject_id,
-        section=section.upper() if section else None,
+        section=section.upper()
+        if section
+        else None,
         exam_session=(
             exam_session.upper()
             if exam_session
             else None
         ),
+        search=search,
     )
 
     
