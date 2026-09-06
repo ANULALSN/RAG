@@ -1,0 +1,326 @@
+from pathlib import Path
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+)
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.db.question_paper_repository import (
+    create_question_paper,
+    get_question_paper,
+    get_question_paper_by_filename,
+    list_question_papers,
+    update_question_paper_status,
+    delete_question_paper,
+)
+from app.db.question_repository import (
+    create_questions,
+    list_questions,
+)
+from app.ingestion.pdf_loader import extract_pdf
+from app.ingestion.question_parser import parse_questions
+
+
+router = APIRouter(
+    tags=["Question Papers"]
+)
+
+
+# --------------------------------------------------
+# Temporary upload directory
+# --------------------------------------------------
+
+UPLOAD_DIR = Path("data/uploads/question_papers")
+
+UPLOAD_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+# --------------------------------------------------
+# Subject validation
+# --------------------------------------------------
+
+VALID_SUBJECTS = {
+    "big-data",
+    "dbms",
+    "computer-networks",
+    "operating-systems",
+}
+
+
+# --------------------------------------------------
+# POST /subjects/{subject_id}/question-papers
+# --------------------------------------------------
+
+@router.post(
+    "/subjects/{subject_id}/question-papers",
+    status_code=201,
+)
+def upload_question_paper(
+    subject_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+
+    # ----------------------------------------------
+    # 1. Validate subject
+    # ----------------------------------------------
+
+    if subject_id not in VALID_SUBJECTS:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Subject not found.",
+        )
+
+    # ----------------------------------------------
+    # 2. Validate file type
+    # ----------------------------------------------
+
+    filename = file.filename or ""
+
+    if not filename.lower().endswith(".pdf"):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are currently supported.",
+        )
+
+    # ----------------------------------------------
+    # 3. Prevent duplicate paper
+    # ----------------------------------------------
+
+    existing_paper = get_question_paper_by_filename(
+        db,
+        subject_id,
+        filename,
+    )
+
+    if existing_paper is not None:
+
+        raise HTTPException(
+            status_code=409,
+            detail="A question paper with this filename already exists for this subject.",
+        )
+
+    # ----------------------------------------------
+    # 4. Create metadata
+    # ----------------------------------------------
+
+    paper = create_question_paper(
+        db,
+        subject_id=subject_id,
+        filename=filename,
+        display_name=Path(filename).stem,
+        file_type="pdf",
+    )
+
+    # ----------------------------------------------
+    # 5. Save temporary PDF
+    # ----------------------------------------------
+
+    temp_path = (
+        UPLOAD_DIR
+        / f"{paper.id}_{filename}"
+    )
+
+    try:
+
+        with temp_path.open("wb") as destination:
+
+            while True:
+
+                chunk = file.file.read(
+                    1024 * 1024
+                )
+
+                if not chunk:
+                    break
+
+                destination.write(chunk)
+
+        # ------------------------------------------
+        # 6. Extract PDF
+        # ------------------------------------------
+
+        pages = extract_pdf(temp_path)
+
+        # ------------------------------------------
+        # 7. Parse questions
+        # ------------------------------------------
+
+        questions = parse_questions(pages)
+
+        # ------------------------------------------
+        # 8. Store questions
+        # ------------------------------------------
+
+        create_questions(
+            db,
+            question_paper_id=paper.id,
+            questions=questions,
+        )
+
+        # ------------------------------------------
+        # 9. Mark paper as indexed
+        # ------------------------------------------
+
+        paper = update_question_paper_status(
+            db,
+            paper,
+            status="indexed",
+            page_count=len(pages),
+            question_count=len(questions),
+        )
+
+    except Exception as exc:
+
+        # ------------------------------------------
+        # 10. Mark failed
+        # ------------------------------------------
+
+        update_question_paper_status(
+            db,
+            paper,
+            status="failed",
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Question paper processing failed: {str(exc)}",
+        )
+
+    finally:
+
+        # ------------------------------------------
+        # 11. Remove temporary file
+        # ------------------------------------------
+
+        if temp_path.exists():
+            temp_path.unlink()
+
+    return paper
+
+
+# --------------------------------------------------
+# GET /subjects/{subject_id}/question-papers
+# --------------------------------------------------
+
+@router.get(
+    "/subjects/{subject_id}/question-papers",
+)
+def get_subject_question_papers(
+    subject_id: str,
+    db: Session = Depends(get_db),
+):
+
+    if subject_id not in VALID_SUBJECTS:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Subject not found.",
+        )
+
+    return list_question_papers(
+        db,
+        subject_id,
+    )
+
+
+# --------------------------------------------------
+# GET /question-papers/{question_paper_id}
+# --------------------------------------------------
+
+@router.get(
+    "/question-papers/{question_paper_id}",
+)
+def get_question_paper_by_id(
+    question_paper_id: str,
+    db: Session = Depends(get_db),
+):
+
+    paper = get_question_paper(
+        db,
+        question_paper_id,
+    )
+
+    if paper is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Question paper not found.",
+        )
+
+    return paper
+
+# --------------------------------------------------
+# GET /question-papers/{question_paper_id}/questions
+# --------------------------------------------------
+
+@router.get(
+    "/question-papers/{question_paper_id}/questions",
+)
+def get_question_paper_questions(
+    question_paper_id: str,
+    db: Session = Depends(get_db),
+):
+
+    paper = get_question_paper(
+        db,
+        question_paper_id,
+    )
+
+    if paper is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Question paper not found.",
+        )
+
+    return list_questions(
+        db,
+        question_paper_id,
+    )
+
+
+
+# --------------------------------------------------
+# DELETE /question-papers/{question_paper_id}
+# --------------------------------------------------
+
+@router.delete(
+    "/question-papers/{question_paper_id}",
+)
+def remove_question_paper(
+    question_paper_id: str,
+    db: Session = Depends(get_db),
+):
+
+    paper = get_question_paper(
+        db,
+        question_paper_id,
+    )
+
+    if paper is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Question paper not found.",
+        )
+
+    delete_question_paper(
+        db,
+        paper,
+    )
+
+    return {
+        "deleted": True,
+        "question_paper_id": question_paper_id,
+    }

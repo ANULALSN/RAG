@@ -15,6 +15,7 @@ from app.orchestration.rag_pipeline import (
 )
 from app.api.subjects import router as subjects_router
 from app.api.materials import router as materials_router
+from app.api.question_papers import router as question_papers_router
 
 
 app = FastAPI(
@@ -41,6 +42,9 @@ app.add_middleware(
 app.include_router(subjects_router)
 app.include_router(chats_router)
 app.include_router(materials_router)
+app.include_router(question_papers_router)
+
+
 
 
 rag = RAGPipeline()
