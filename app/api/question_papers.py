@@ -27,6 +27,10 @@ from app.db.question_repository import (
 from app.ingestion.pdf_loader import extract_pdf
 from app.ingestion.question_parser import parse_questions
 
+from app.ingestion.question_paper_metadata import (
+    extract_question_paper_metadata,
+)
+
 
 router = APIRouter(
     tags=["Question Papers"]
@@ -157,7 +161,9 @@ def upload_question_paper(
         # ------------------------------------------
         # 7. Parse questions
         # ------------------------------------------
-
+          
+        metadata = extract_question_paper_metadata(pages)  
+        
         questions = parse_questions(pages)
 
         # ------------------------------------------
@@ -169,6 +175,14 @@ def upload_question_paper(
             question_paper_id=paper.id,
             questions=questions,
         )
+        
+        
+        paper.exam_session = metadata["exam_session"]
+        paper.course_code = metadata["course_code"]
+        paper.exam_title = metadata["exam_title"]
+
+        db.commit()
+        db.refresh(paper)
 
         # ------------------------------------------
         # 9. Mark paper as indexed

@@ -206,7 +206,24 @@ class QuestionPaper(Base):
         String(255),
         nullable=False,
     )
+    
+    exam_session: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
 
+    course_code: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    exam_title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    
+    
+    
     file_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
