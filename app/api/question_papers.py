@@ -5,6 +5,7 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Query,
     UploadFile,
 )
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ from app.db.question_paper_repository import (
 from app.db.question_repository import (
     create_questions,
     list_questions,
+    list_questions_by_subject,
 )
 from app.ingestion.pdf_loader import extract_pdf
 from app.ingestion.question_parser import parse_questions
@@ -233,7 +235,40 @@ def get_subject_question_papers(
         subject_id,
     )
 
+# --------------------------------------------------
+# GET /subjects/{subject_id}/questions
+# --------------------------------------------------
 
+# --------------------------------------------------
+# GET /subjects/{subject_id}/questions
+# --------------------------------------------------
+
+@router.get(
+    "/subjects/{subject_id}/questions",
+)
+def get_subject_questions(
+    subject_id: str,
+    section: str | None = Query(
+        default=None,
+        pattern="^[ABCabc]$",
+    ),
+    db: Session = Depends(get_db),
+):
+
+    if subject_id not in VALID_SUBJECTS:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Subject not found.",
+        )
+
+    return list_questions_by_subject(
+        db,
+        subject_id,
+        section=section.upper() if section else None,
+    )
+
+    
 # --------------------------------------------------
 # GET /question-papers/{question_paper_id}
 # --------------------------------------------------

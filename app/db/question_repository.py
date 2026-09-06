@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Question
+from app.db.models import Question, QuestionPaper
 
 
 
@@ -85,6 +85,35 @@ def list_questions(
         .order_by(
             Question.question_number.asc()
         )
+    )
+
+    return list(db.scalars(statement).all())
+
+def list_questions_by_subject(
+    db: Session,
+    subject_id: str,
+    section: str | None = None,
+) -> list[Question]:
+
+    statement = (
+        select(Question)
+        .join(
+            QuestionPaper,
+            Question.question_paper_id
+            == QuestionPaper.id,
+        )
+        .where(
+            QuestionPaper.subject_id == subject_id
+        )
+    )
+
+    if section is not None:
+        statement = statement.where(
+            Question.section == section
+        )
+
+    statement = statement.order_by(
+        Question.question_number.asc()
     )
 
     return list(db.scalars(statement).all())
