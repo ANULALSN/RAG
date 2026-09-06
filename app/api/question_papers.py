@@ -257,6 +257,10 @@ def get_subject_question_papers(
 # GET /subjects/{subject_id}/questions
 # --------------------------------------------------
 
+# --------------------------------------------------
+# GET /subjects/{subject_id}/questions
+# --------------------------------------------------
+
 @router.get(
     "/subjects/{subject_id}/questions",
 )
@@ -265,6 +269,11 @@ def get_subject_questions(
     section: str | None = Query(
         default=None,
         pattern="^[ABCabc]$",
+    ),
+    exam_session: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=100,
     ),
     db: Session = Depends(get_db),
 ):
@@ -280,6 +289,11 @@ def get_subject_questions(
         db,
         subject_id,
         section=section.upper() if section else None,
+        exam_session=(
+            exam_session.upper()
+            if exam_session
+            else None
+        ),
     )
 
     

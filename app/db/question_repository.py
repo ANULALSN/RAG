@@ -93,6 +93,7 @@ def list_questions_by_subject(
     db: Session,
     subject_id: str,
     section: str | None = None,
+    exam_session: str | None = None,
 ) -> list[Question]:
 
     statement = (
@@ -110,6 +111,12 @@ def list_questions_by_subject(
     if section is not None:
         statement = statement.where(
             Question.section == section
+        )
+
+    if exam_session is not None:
+        statement = statement.where(
+            QuestionPaper.exam_session
+            == exam_session
         )
 
     statement = statement.order_by(
