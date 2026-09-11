@@ -15,6 +15,12 @@ WEIGHTAGE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+SECTION_QUESTION_RANGES = {
+    "A": (1, 7),
+    "B": (8, 14),
+    "C": (15, 18),
+}
+
 
 def parse_section_weightages(
     text: str,
@@ -22,15 +28,13 @@ def parse_section_weightages(
     """
     Extract section-level question weightage.
 
-    Normal OCR:
+    Examples:
         (4x2 = 8 weightage)
         (4x3 = 12 weightage)
         (2x5 = 10 weightage)
 
-    Some OCR output may read:
+    OCR may sometimes read:
         (43 = 12 weightage)
-
-    where "4x3" was interpreted as "43".
 
     Returns:
         {
@@ -42,10 +46,6 @@ def parse_section_weightages(
 
     section_weightages = {}
 
-    # --------------------------------------
-    # Find section positions
-    # --------------------------------------
-
     section_matches = list(
         SECTION_PATTERN.finditer(text)
     )
@@ -54,17 +54,12 @@ def parse_section_weightages(
         section_matches
     ):
 
-        section = (
-            section_match.group(1)
-            .upper()
-        )
+        section = section_match.group(1).upper()
 
         start = section_match.end()
 
         if index + 1 < len(section_matches):
-            end = section_matches[
-                index + 1
-            ].start()
+            end = section_matches[index + 1].start()
         else:
             end = len(text)
 
@@ -92,7 +87,6 @@ def parse_section_weightages(
                 weightage_match.group(3)
             )
 
-            # Basic consistency check.
             if (
                 question_count
                 * weightage_per_question
@@ -134,8 +128,6 @@ def parse_section_weightages(
                 ocr_weightage_match.group(3)
             )
 
-            # Only accept the OCR interpretation
-            # when the arithmetic is valid.
             if (
                 question_count
                 * weightage_per_question
@@ -148,6 +140,54 @@ def parse_section_weightages(
     return section_weightages
 
 
+def clean_question_text(text: str) -> str:
+    """
+    Clean OCR artifacts from question text.
+    """
+
+    text = text.strip()
+
+    text = re.sub(
+        r"\(\s*\d+\s*x\s*\d+\s*=\s*\d+\s*weightage\s*\)",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    )
+
+    return text.strip()
+
+
+def is_ocr_garbage(line: str) -> bool:
+    """
+    Detect obvious OCR garbage that should not become
+    a question.
+
+    Example:
+        2a Mw PF YN
+    """
+
+    cleaned = line.strip()
+
+    if not cleaned:
+        return True
+
+    # Known style of OCR corruption seen between
+    # Section A questions in the 2024 paper.
+    if re.fullmatch(
+        r"[0-9A-Za-z]{1,3}(?:\s+[A-Za-z]{1,3}){2,}",
+        cleaned,
+    ):
+        return True
+
+    return False
+
+
 def parse_questions(
     pages: list[dict],
 ) -> list[dict]:
@@ -157,14 +197,8 @@ def parse_questions(
     current_section = None
     current_question = None
 
-    section_first_question = {
-        "A": 1,
-        "B": 8,
-        "C": 15,
-    }
-
     # --------------------------------------
-    # Extract section weightages
+    # Extract full text
     # --------------------------------------
 
     full_text = "\n".join(
@@ -177,7 +211,7 @@ def parse_questions(
     )
 
     # --------------------------------------
-    # Process pages
+    # Process each page
     # --------------------------------------
 
     for page in pages:
@@ -186,8 +220,11 @@ def parse_questions(
         text = page.get("text", "")
 
         # --------------------------------------
-        # Remove OCR-split weightage summaries
-        # before splitting into lines.
+        # Remove weightage summaries.
+        #
+        # Do this before processing lines so
+        # "(4 x 2 = 8 weightage)" does not become
+        # part of a question.
         # --------------------------------------
 
         text = re.sub(
@@ -197,17 +234,61 @@ def parse_questions(
             flags=re.IGNORECASE | re.DOTALL,
         )
 
-        lines = [
-            line.strip()
-            for line in text.splitlines()
-            if line.strip()
-        ]
+        # --------------------------------------
+        # Keep blank lines.
+        #
+        # Blank lines are useful for OCR output
+        # where Section A question numbers have
+        # disappeared but each question remains
+        # in its own paragraph.
+        # --------------------------------------
+
+        raw_lines = text.splitlines()
+
+        lines = []
+
+        for raw_line in raw_lines:
+
+            line = raw_line.strip()
+
+            if line:
+                lines.append(line)
+            else:
+                # Preserve paragraph boundaries.
+                if lines and lines[-1] != "":
+                    lines.append("")
+
+        # --------------------------------------
+        # Process lines
+        # --------------------------------------
 
         for line in lines:
 
-            # --------------------------------------
+            # ----------------------------------
+            # Blank line
+            # ----------------------------------
+
+            if not line:
+
+                # If the current question has text,
+                # keep it as a completed question.
+                #
+                # This is especially important for
+                # OCR output from Section A.
+                if (
+                    current_question is not None
+                    and current_section == "A"
+                ):
+                    questions.append(
+                        current_question
+                    )
+                    current_question = None
+
+                continue
+
+            # ----------------------------------
             # Detect section
-            # --------------------------------------
+            # ----------------------------------
 
             section_match = SECTION_PATTERN.search(
                 line
@@ -227,32 +308,40 @@ def parse_questions(
 
                 continue
 
-            # --------------------------------------
+            # ----------------------------------
             # Ignore section instructions
-            # --------------------------------------
+            # ----------------------------------
 
             if line.lower().startswith(
                 "answer any "
             ):
                 continue
 
-            # --------------------------------------
-            # Ignore normal weightage summary
-            # --------------------------------------
+            if line.lower().startswith(
+                "section "
+            ):
+                continue
+
+            # ----------------------------------
+            # Ignore weightage lines
+            # ----------------------------------
 
             if WEIGHTAGE_PATTERN.search(line):
                 continue
 
-            # --------------------------------------
-            # Ignore OCR-split weightage ending
-            # --------------------------------------
-
             if line.lower() == "weightage)":
                 continue
 
-            # --------------------------------------
+            # ----------------------------------
+            # Ignore obvious OCR garbage
+            # ----------------------------------
+
+            if is_ocr_garbage(line):
+                continue
+
+            # ----------------------------------
             # Detect numbered question
-            # --------------------------------------
+            # ----------------------------------
 
             question_match = QUESTION_PATTERN.match(
                 line
@@ -260,12 +349,7 @@ def parse_questions(
 
             if question_match:
 
-                if current_question is not None:
-                    questions.append(
-                        current_question
-                    )
-
-                question_number = int(
+                detected_number = int(
                     question_match.group(1)
                 )
 
@@ -276,87 +360,171 @@ def parse_questions(
                     .strip()
                 )
 
-                # Remove any weightage text that
-                # remains on the same line.
-                question_text = re.sub(
-                    r"\(\s*\d+\s*x\s*\d+\s*=\s*\d+\s*weightage\s*\)",
-                    "",
-                    question_text,
-                    flags=re.IGNORECASE,
-                ).strip()
+                # ----------------------------------
+                # Repair OCR question number based
+                # on the known section range.
+                #
+                # Example:
+                # Section C:
+                # OCR → 5.
+                # Actual → 15.
+                # ----------------------------------
 
-                current_question = {
-                    "question_number": question_number,
-                    "section": current_section,
-                    "text": question_text,
-                    "page": page_number,
-                    "weightage": section_weightages.get(
-                        current_section
-                    ),
-                }
+                if current_section is not None:
 
-                continue
-
-            # --------------------------------------
-            # Recover OCR-missing question number
-            # --------------------------------------
-
-            if (
-                current_question is None
-                and current_section is not None
-            ):
-
-                expected_number = (
-                    section_first_question[
-                        current_section
-                    ]
-                )
-
-                if not questions:
-                    next_number = expected_number
-                else:
-                    previous = questions[-1]
+                    range_start, range_end = (
+                        SECTION_QUESTION_RANGES[
+                            current_section
+                        ]
+                    )
 
                     if (
-                        previous["section"]
-                        == current_section
+                        current_section == "C"
+                        and detected_number == 5
                     ):
-                        next_number = (
-                            previous[
-                                "question_number"
-                            ]
-                            + 1
+                        detected_number = 15
+
+                    # If OCR produces a number outside
+                    # the valid range for the section,
+                    # do not blindly trust it.
+                    elif not (
+                        range_start
+                        <= detected_number
+                        <= range_end
+                    ):
+                        detected_number = None
+
+                else:
+                    detected_number = detected_number
+
+                # ----------------------------------
+                # If the detected number is valid,
+                # start a new question.
+                # ----------------------------------
+
+                if detected_number is not None:
+
+                    if current_question is not None:
+                        questions.append(
+                            current_question
                         )
-                    else:
-                        next_number = expected_number
 
-                current_question = {
-                    "question_number": next_number,
-                    "section": current_section,
-                    "text": line.lstrip("|:").strip(),
-                    "page": page_number,
-                    "weightage": section_weightages.get(
-                        current_section
-                    ),
-                }
+                    current_question = {
+                        "question_number": (
+                            detected_number
+                        ),
+                        "section": current_section,
+                        "text": clean_question_text(
+                            question_text
+                        ),
+                        "page": page_number,
+                        "weightage": (
+                            section_weightages.get(
+                                current_section
+                            )
+                        ),
+                    }
 
-                continue
+                    continue
 
-            # --------------------------------------
-            # Continuation of current question
-            # --------------------------------------
+            # ----------------------------------
+            # Section A OCR recovery
+            #
+            # In the 2024 paper, Q2-Q7 have lost
+            # their numbers but remain as separate
+            # paragraphs.
+            # ----------------------------------
+
+            if current_section == "A":
+
+                range_start, range_end = (
+                    SECTION_QUESTION_RANGES["A"]
+                )
+
+                existing_section_questions = [
+                    question
+                    for question in questions
+                    if question["section"] == "A"
+                ]
+
+                if current_question is not None:
+                    existing_section_questions.append(
+                        current_question
+                    )
+
+                next_number = (
+                    range_start
+                    + len(existing_section_questions)
+                )
+
+                if next_number <= range_end:
+
+                    if current_question is not None:
+                        questions.append(
+                            current_question
+                        )
+
+                    current_question = {
+                        "question_number": next_number,
+                        "section": "A",
+                        "text": clean_question_text(
+                            line
+                        ),
+                        "page": page_number,
+                        "weightage": (
+                            section_weightages.get(
+                                "A"
+                            )
+                        ),
+                    }
+
+                    continue
+
+            # ----------------------------------
+            # Continuation of a numbered question
+            # ----------------------------------
 
             if current_question is not None:
 
                 current_question["text"] += (
-                    " " + line
+                    " " + clean_question_text(line)
                 )
 
-    # ------------------------------------------
+    # --------------------------------------
     # Save final question
-    # ------------------------------------------
+    # --------------------------------------
 
     if current_question is not None:
         questions.append(current_question)
 
-    return questions
+    # --------------------------------------
+    # Final cleanup
+    #
+    # Remove accidental duplicates and keep
+    # question order.
+    # --------------------------------------
+
+    cleaned_questions = []
+
+    seen = set()
+
+    for question in questions:
+
+        key = (
+            question["section"],
+            question["question_number"],
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        cleaned_questions.append(question)
+
+    cleaned_questions.sort(
+        key=lambda question: (
+            question["question_number"]
+        )
+    )
+
+    return cleaned_questions
