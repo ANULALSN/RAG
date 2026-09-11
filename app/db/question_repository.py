@@ -161,37 +161,70 @@ def get_question_paper_overview(
 
     sections = {}
 
+    # Number of questions the student answers
+    # in each section for the MSc examination.
+    answer_counts = {
+        "A": 4,
+        "B": 4,
+        "C": 2,
+    }
+
     for question in questions:
         section = question.section
         weightage = question.weightage
 
         if section not in sections:
             sections[section] = {
-                "question_count": 0,
-                "weightage": weightage,
-                "marks_per_question": (
-                    weightage * 5
-                    if weightage is not None
-                    else None
+                "available_questions": 0,
+                "answerable_questions": (
+                    answer_counts.get(section)
                 ),
-                "total_marks": 0,
+                "weightage_per_question": weightage,
+                "section_weightage": 0,
+                "marks_per_weightage": 5,
+                "section_marks": 0,
             }
 
-        sections[section]["question_count"] += 1
+        sections[section]["available_questions"] += 1
 
-        if weightage is not None:
-            sections[section]["total_marks"] += (
-                weightage * 5
+    maximum_weightage = 0
+    maximum_marks = 0
+
+    for section, data in sections.items():
+        weightage = data["weightage_per_question"]
+        answerable = data["answerable_questions"]
+
+        if (
+            weightage is not None
+            and answerable is not None
+        ):
+            section_weightage = (
+                answerable * weightage
             )
 
-    total_marks = sum(
-        section["total_marks"]
-        for section in sections.values()
-    )
+            section_marks = (
+                section_weightage * 5
+            )
+
+            data["section_weightage"] = (
+                section_weightage
+            )
+
+            data["section_marks"] = (
+                section_marks
+            )
+
+            maximum_weightage += (
+                section_weightage
+            )
+
+            maximum_marks += section_marks
 
     return {
         "question_paper_id": question_paper_id,
-        "question_count": len(questions),
-        "total_marks": total_marks,
+        "available_question_count": len(questions),
+        "maximum_weightage": maximum_weightage,
+        "marks_per_weightage": 5,
+        "maximum_marks": maximum_marks,
         "sections": sections,
     }
