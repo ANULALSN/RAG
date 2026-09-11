@@ -23,6 +23,7 @@ from app.db.question_repository import (
     create_questions,
     list_questions,
     list_questions_by_subject,
+     get_question_paper_overview,
 )
 from app.ingestion.pdf_loader import extract_pdf
 from app.ingestion.question_parser import parse_questions
@@ -358,7 +359,28 @@ def get_question_paper_questions(
         question_paper_id,
     )
 
+@router.get(
+    "/question-papers/{question_paper_id}/overview",
+)
+def get_question_paper_overview_endpoint(
+    question_paper_id: str,
+    db: Session = Depends(get_db),
+):
+    paper = get_question_paper(
+        db,
+        question_paper_id,
+    )
 
+    if paper is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Question paper not found.",
+        )
+
+    return get_question_paper_overview(
+        db,
+        question_paper_id,
+    )
 
 # --------------------------------------------------
 # DELETE /question-papers/{question_paper_id}

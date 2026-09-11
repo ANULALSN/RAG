@@ -149,3 +149,49 @@ def delete_questions(
         db.delete(question)
 
     db.commit()
+    
+def get_question_paper_overview(
+    db: Session,
+    question_paper_id: str,
+) -> dict:
+    questions = list_questions(
+        db,
+        question_paper_id,
+    )
+
+    sections = {}
+
+    for question in questions:
+        section = question.section
+        weightage = question.weightage
+
+        if section not in sections:
+            sections[section] = {
+                "question_count": 0,
+                "weightage": weightage,
+                "marks_per_question": (
+                    weightage * 5
+                    if weightage is not None
+                    else None
+                ),
+                "total_marks": 0,
+            }
+
+        sections[section]["question_count"] += 1
+
+        if weightage is not None:
+            sections[section]["total_marks"] += (
+                weightage * 5
+            )
+
+    total_marks = sum(
+        section["total_marks"]
+        for section in sections.values()
+    )
+
+    return {
+        "question_paper_id": question_paper_id,
+        "question_count": len(questions),
+        "total_marks": total_marks,
+        "sections": sections,
+    }
